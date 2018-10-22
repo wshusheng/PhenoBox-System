@@ -27,34 +27,33 @@ public class Phenopipe {
 	static final Logger logger = LogManager.getLogger();
 	public static void main(String[] args) {
 		if(args.length==0){
-		logger.info("Starting up Phenopipe IAP Server");
-		Config.INSTANCE.load();
-		
-		final IAPAutomation iap = new IAPAutomation();
-		final PhenopipeServer server = new PhenopipeServer(iap);
-
-			//TODO use config file
-		try {
-			PhenopipeIapMongoDb.INSTANCE.init("localhost", 27017,Config.INSTANCE.getMongoProperty("database_name"));
-		} catch (UnknownHostException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-		
-		try {
-			server.start();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
-		try {
-			server.blockUntilShutdown();
+			logger.info("Starting up Phenopipe IAP Server");
+			Config.INSTANCE.load();
 			
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+			final IAPAutomation iap = new IAPAutomation();
+			final PhenopipeServer server = new PhenopipeServer(iap);
+				//TODO use config file
+			try {
+				PhenopipeIapMongoDb.INSTANCE.init("localhost", 27017,Config.INSTANCE.getMongoProperty("database_name"));
+			} catch (UnknownHostException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			
+			try {
+				server.start();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			try {
+				server.blockUntilShutdown();
+				
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}else if (args.length==2 && args[0].equals("-encrypt-pw")){
 			SystemOptions so = SystemOptions.getInstance("secret", null);
 			String defaultValue = java.util.UUID.randomUUID().toString();

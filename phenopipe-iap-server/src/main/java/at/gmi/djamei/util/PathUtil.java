@@ -8,21 +8,22 @@ import at.gmi.djamei.config.Config;
 
 
 public class PathUtil {
+	private PathUtil(){}
+	
 	//TODO Error handling for malformed paths
 	public static Path getLocalPathFromSmbUrl(String url){
 		//TODO sanitize and remove e.g: /../ entries
-		String pathParts[] =url.split("/");
-		StringBuilder sb = new StringBuilder();
-		sb.append(pathParts[0]);
-		sb.append("//");
-		sb.append(pathParts[2]);
-		sb.append('/');
-		sb.append(pathParts[3]);
-		Path mountPoint = Paths.get(Config.INSTANCE.getLocalPathFromSmbUrl(sb.toString()));
+		int index = url.indexOf('/');
+		for(int i=0; i<3;i++){
+			index = url.indexOf('/', index + 1);
+		}
+		
+		Path mountPoint = Paths.get(Config.INSTANCE.getLocalPathFromSmbUrl(url.substring(0, index+1)));
 		if (mountPoint!=null){
-			if(pathParts.length>4){
-				for(int i=4; i<pathParts.length; i++){
-					mountPoint = mountPoint.resolve(pathParts[i]);	
+			if(url.length()>index){
+				String[] parts = url.substring(index+1, url.length()).split("/");
+				for(int i=0; i<parts.length; i++){
+					mountPoint = mountPoint.resolve(parts[i]);	
 				}
 			}
 			return mountPoint;

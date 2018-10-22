@@ -192,6 +192,7 @@ public class IAPAutomation {
 
 		this.executeCommand(importAction, sp);
 		ExperimentInterface experiment = ((ActionImportFilesToMongo) importAction).getResultExperiment();
+		//TODO null check on experiment
 		ExperimentReference expRef = new ExperimentReference(experiment.getHeader(), m);
 		return expRef;
 	}
@@ -290,7 +291,7 @@ public class IAPAutomation {
 		String name = ini.get("DESCRIPTION", "pipeline_name", String.class);
 		logger.info("Add Pipeline with name {}", name);
 		MongoCollection<Document> pipelineCollection = PhenopipeIapMongoDb.INSTANCE.getIapPipelineCollection();
-		Document pipelineDoc = pipelineCollection.find(Filters.eq("name", name)).first();
+		Document pipelineDoc = pipelineCollection.find(Filters.and(Filters.eq("name", name), Filters.eq("author",author))).first();
 		if(pipelineDoc==null){
 			String description = ini.get("DESCRIPTION", "pipeline_description", String.class);
 			String tunedForVersion = ini.get("DESCRIPTION", "tuned_for_IAP_version", String.class);

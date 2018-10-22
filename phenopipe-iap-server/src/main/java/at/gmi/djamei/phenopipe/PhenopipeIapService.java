@@ -301,7 +301,6 @@ public class PhenopipeIapService extends PhenopipeIapGrpc.PhenopipeIapImplBase {
 
 	@Override
 	public void deleteExperiment(DeleteRequest request, StreamObserver<JobResponse> responseObserver) {
-		//ExperimentHeaderInterface header = iap.getM().getExperimentHeader(new ObjectId(request.getExperimentId()));
 		ExperimentHeaderInterface header = iap.getExperimentHeader(request.getExperimentId());
 		if (header != null) {
 			GrpcStatusProvider sp = new GrpcStatusProvider();

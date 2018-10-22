@@ -25,8 +25,9 @@ public enum Config {
 		try {
 			props.load(input);
 			folderMap.load(shared_folder_map);
-			for (final String name: folderMap.stringPropertyNames())
+			for (final String name: folderMap.stringPropertyNames()){
 		        smb2local.put(name, folderMap.getProperty(name));
+			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -64,7 +65,7 @@ public enum Config {
 	        	int l = entry.getValue().length();
 	        	if(l<path.length()){
 	        		String remainder = path.substring(l).replaceAll(File.pathSeparator, "/");
-	        		return entry.getKey()+'/'+remainder;
+	        		return entry.getKey()+remainder;
 	        	}else{
 	        		return entry.getKey();
 	        	}

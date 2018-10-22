@@ -15,6 +15,7 @@ apply plugin: 'com.google.protobuf'
 apply plugin: 'application'
 apply plugin: 'org.anarres.jarjar'
 
+
 buildscript {
   repositories {
     mavenCentral()
@@ -100,19 +101,18 @@ task iapjar(type: Copy){
 
 }
 
-
 startScripts.enabled = false
 
 task phenopipeIapServer(type: CreateStartScripts) {
-  mainClassName = 'at.gmi.djamei.phenopipe.Phenopipe'
-  applicationName = 'phenopipe-iap-server'
-  outputDir = new File(project.buildDir, 'tmp')
-  classpath = jar.outputs.files + project.configurations.runtime
+	mainClassName = 'at.gmi.djamei.phenopipe.Phenopipe'
+  	applicationName = 'phenopipe-iap-server'
+  	outputDir = new File(project.buildDir, 'tmp')
+  	classpath = jar.outputs.files + project.configurations.runtime
 }
 
 applicationDistribution.into('bin') {
-  from(phenopipeIapServer)
-  fileMode = 0755
+  	from(phenopipeIapServer)
+  	fileMode = 0755
 }
 
 

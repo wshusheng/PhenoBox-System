@@ -1,6 +1,7 @@
 package at.gmi.djamei.iap.actions;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.GregorianCalendar;
@@ -112,7 +113,8 @@ public class ActionImportFilesToMongo extends AbstractNavigationAction implement
 		if (annotationFile.exists()) {
 			tableData = TableData.getTableData(annotationFile, true);
 		} else {
-			return; // There is no fileimport.xlsx file
+			// There is no fileimport.xlsx file
+			throw new FileNotFoundException("'fileimport.xlsx' does not exist in the given folder '"+directory.toString()+"'");
 		}
 		
 		Experiment e = new Experiment();
