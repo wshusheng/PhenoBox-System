@@ -4,6 +4,8 @@ import {ApolloQueryResult} from 'apollo-client';
 import {Apollo, QueryRef} from 'apollo-angular';
 import {ActivatedRoute} from '@angular/router';
 import {TemplateUtilsService} from '../../../shared/template-utils.service';
+import {Observable} from 'rxjs/Observable';
+import {throttleTime} from 'rxjs/operators';
 
 const fetchJobLog = gql`
   query fetchJobLog($jobId:ID!, $newestFirst:Boolean, $cursor: String, $limit:Int){
@@ -33,15 +35,22 @@ const fetchJobLog = gql`
   styleUrls  : ['./log-view.component.css']
 })
 export class LogViewComponent implements OnInit {
-  private jobIds: string[];
+  private jobIds: string[] = [];
   private jobQueries: QueryRef<GQL.IGraphQLResponseRoot>[] = [];
   private jobs: GQL.IJob[] = [];
-  private newestFirst: boolean = true;
+  private newestFirst: boolean = false;
   private cursors: string[] = [];
   private isLoading: boolean[] = [];
   private tabs: any[] = [];
+  onLoadMore: (limit: number, index: number) => void;
+  private loadMore$;
 
   constructor(private activeRoute: ActivatedRoute, private apollo: Apollo, private el: ElementRef, private templateUtils: TemplateUtilsService) {
+    this.loadMore$ = Observable.create(obs => {
+      this.onLoadMore = (limit, index) => {
+        obs.next({limit, index})
+      }
+    })
   }
 
   private loadJob(query: QueryRef<GQL.IGraphQLResponseRoot>) {
@@ -53,17 +62,17 @@ export class LogViewComponent implements OnInit {
 
   loadMore(limit: number, index: number) {
     if (!this.isLoading[index] && this.cursors[index] != null) {//TODO use hasNextPage?
-      console.log('Load more');
       this.isLoading[index] = true;
       this.jobQueries[index].fetchMore({
-        query      : fetchJobLog, variables: {
+        query      : fetchJobLog,
+        variables  : {
           jobId      : this.jobIds[index],
-          cursor     : this.jobs[index].log.pageInfo.endCursor,
+          cursor     : this.cursors[index],
           limit      : limit,
           newestFirst: this.newestFirst
         },
         updateQuery: (prev, {fetchMoreResult}) => {
-          this.cursors[index] = fetchMoreResult['job'].log.pageInfo.endCursor;
+          console.log(fetchMoreResult);
           return Object.assign({}, prev,
             {
               job: Object.assign({}, ...prev['job'], {
@@ -78,11 +87,16 @@ export class LogViewComponent implements OnInit {
             }
           );
         }
+      }).then(() => {
+        this.isLoading[index] = false;
       });
     }
   }
 
   ngOnInit() {
+    this.loadMore$.pipe(throttleTime(800)).subscribe((event: { limit: number, index: number }) => {
+      this.loadMore(event.limit, event.index)
+    });
     this.activeRoute.queryParams.subscribe((params) => {
       //If only a single id is passed the content of params['job_ids'] is no array
       if (params['job_ids'] instanceof Array) {
@@ -90,6 +104,7 @@ export class LogViewComponent implements OnInit {
       } else {
         this.jobIds[0] = params['job_ids'];
       }
+
       this.jobIds.forEach((jobId, i) => {
         this.cursors[i] = "";
         this.isLoading[i] = false;
@@ -105,18 +120,23 @@ export class LogViewComponent implements OnInit {
           });
         this.loadJob(this.jobQueries[i]).subscribe((job) => {
           this.jobs[i] = job;
+          let newCursor = job.log.pageInfo.endCursor;
+          console.log('newC', newCursor);
+          if (newCursor != null) {
+            this.cursors[i] = newCursor;
+          }
+
           if (this.tabs.length != this.jobIds.length) {
             this.tabs[i] = {'title': job.name, 'active': i === 0}
           }
 
-          this.isLoading[i] = false;
+
         })
       });
     });
   }
 
   onTabSelected(event, index) {
-    console.log(event);
   }
 }
 

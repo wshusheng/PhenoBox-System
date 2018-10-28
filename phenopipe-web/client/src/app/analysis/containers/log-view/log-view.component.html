@@ -5,7 +5,7 @@
            [heading]="tab?.title"
            (select)="onTabSelected($event, i)"
       >
-        <app-status-log-viewer [statusLogEntries]="jobs[i]?.log.edges" (fetchMoreEntries)="loadMore($event,i)">
+        <app-status-log-viewer [statusLogEntries]="jobs[i]?.log.edges" (fetchMoreEntries)="onLoadMore($event,i)">
           <h4>{{ jobs[i]?.name }}</h4>
         </app-status-log-viewer>
       </tab>
