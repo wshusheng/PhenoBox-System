@@ -2,10 +2,12 @@ import grpc
 from graphql_relay import to_global_id
 
 from server.extensions import db, get_r_channel, \
-    postprocess_task_scheduler
+    postprocess_task_scheduler, redis_db
 from server.gen import phenopipe_r_pb2_grpc, phenopipe_r_pb2
 from server.models import SnapshotModel, SampleGroupModel, AnalysisModel, PlantModel
+from server.modules.processing.analysis.analysis import get_iap_pipeline
 from server.modules.processing.exceptions import AlreadyFinishedError, AnalysisDataNotPresentError
+from server.modules.processing.postprocessing.postprocessing_task import PostprocessingTask
 from server.modules.processing.remote_exceptions import UnavailableError, \
     PostprocessingStackAlreadyExistsError, NotFoundError
 
@@ -51,10 +53,19 @@ def submit_postprocesses(analysis, postprocessing_stack_ids, note, username, dep
 
         for stack in stacks:
             try:
-                task, postprocess = postprocess_task_scheduler.submit_task(analysis, snapshots_query.all(),
-                                                                           control_group, stack, note,
-                                                                           username,
-                                                                           experiment, depends_on)
+                task_name = 'Postprocess IAP analysis'
+                pipeline = get_iap_pipeline(username, analysis.pipeline_id)
+                # TODO think about a way to link to the according analysis page on the frontend
+                task_description = 'Apply postprocessing stack "{}" to results of analysis for experiment "{}" at timestamp({}) with pipeline "{}".'.format(
+                    stack.name, experiment.name,
+                    analysis.timestamp.created_at.strftime("%a %b %d %H:%M:%S UTC %Y"), pipeline.name)
+                task = PostprocessingTask(redis_db, analysis.id, stack.id, username, task_name,
+                                          task_description, stack.name, control_group.id,
+                                          [s.id for s in snapshots_query.all()], note)
+                task.message("Postprocessing Task Created")
+
+                task, postprocess = postprocess_task_scheduler.submit_task(task, depends_on)
+
                 tasks.append(task)
                 postprocesses.append(postprocess)
             except AlreadyFinishedError as e:

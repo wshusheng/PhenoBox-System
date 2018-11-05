@@ -1,5 +1,4 @@
 import graphene
-from flask import current_app
 from flask_jwt_extended import get_jwt_identity
 from graphene import relay
 from graphene_sqlalchemy import SQLAlchemyConnectionField
@@ -122,6 +121,7 @@ class Query(graphene.ObjectType):
             experiment_id = args.get('for_experiment')
             _, experiment_db_id = from_global_id(experiment_id)
             cond = (TimestampModel.experiment_id == experiment_db_id)
+        # TODO ordered as default?
         if 'ordered' in args and args.get('ordered') == True:
             return db.session.query(TimestampModel).filter(cond).order_by(TimestampModel.created_at).all()
 
@@ -285,16 +285,13 @@ class Query(graphene.ObjectType):
     def resolve_analysis_tasks(self, args, context, info):
         identity = get_jwt_identity()
         username = identity.get('username')
-        if username is None and not current_app.config['PRODUCTION']:
-            username = 'a'
         tasks = get_analysis_task_scheduler().fetch_all_tasks(username)
+
         return [Task.from_task_object(task) for task in tasks]
 
     def resolve_postprocessing_tasks(self, args, context, info):
         identity = get_jwt_identity()
         username = identity.get('username')
-        if username is None and not current_app.config['PRODUCTION']:
-            username = 'a'
         tasks = get_postprocess_task_scheduler().fetch_all_tasks(username)
         return [Task.from_task_object(task) for task in tasks]
 

@@ -5,7 +5,7 @@ import grpc
 from flask_sqlalchemy import SQLAlchemy
 from rq import Queue
 
-from server.utils.redis_log_store import LogStore
+from server.modules.processing.redis_log_store import LogStore
 from server.utils.util import static_vars
 
 db = SQLAlchemy()
@@ -27,10 +27,10 @@ postprocessing_job_queue = Queue('postprocessing', connection=redis_db)
 from server.modules.processing.analysis.analysis_task_scheduler import AnalysisTaskScheduler
 from server.modules.processing.postprocessing.postprocess_task_scheduler import PostprocessTaskScheduler
 
-log_store = LogStore(redis_db, 'tasks:logs')
+log_store = LogStore(redis_db)
 
-analysis_task_scheduler = AnalysisTaskScheduler(redis_db, 'ana_tasks', analysis_job_queue, log_store)
-postprocess_task_scheduler = PostprocessTaskScheduler(redis_db, 'post_tasks', postprocessing_job_queue, log_store)
+analysis_task_scheduler = AnalysisTaskScheduler(redis_db, 'ana_tasks', analysis_job_queue)
+postprocess_task_scheduler = PostprocessTaskScheduler(redis_db, 'post_tasks', postprocessing_job_queue)
 
 
 def get_analysis_task_scheduler():

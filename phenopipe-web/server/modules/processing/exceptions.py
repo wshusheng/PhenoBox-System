@@ -33,3 +33,9 @@ class AnalysisDataNotPresentError(ProcessingError):
     def __init__(self, analysis_db_id, message, *args):
         super(AnalysisDataNotPresentError, self).__init__(message, *args)
         self.analysis_db_id = analysis_db_id
+
+
+class InvalidJobIdError(ProcessingError):
+    def __init__(self, job_id, message, *args):
+        super(InvalidJobIdError, self).__init__(message, *args)
+        self.job_id = job_id

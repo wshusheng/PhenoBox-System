@@ -1,13 +1,12 @@
-import os
-
 import grpc
 from flask import current_app
 
+from server.extensions import redis_db
 from server.gen import phenopipe_iap_pb2_grpc, phenopipe_iap_pb2
-from server.modules.processing.exceptions import InvalidPathError, AlreadyFinishedError
+from server.modules.processing.analysis.analysis_task import AnalysisTask
+from server.modules.processing.exceptions import AlreadyFinishedError
 from server.modules.processing.remote_exceptions import UnavailableError, PipelineAlreadyExistsError, \
     InvalidPipelineError, InternalError, NotFoundError
-from server.utils.util import remove_prefix
 
 iap_meta_cols = [
     'import file',
@@ -25,20 +24,15 @@ iap_meta_cols = [
     'growth conditions',
     'treatment'
 ]
-_timeout_import = 43200  # 12h
-_timeout_analysis = 86400  # 24h
-_timeout_export = 300  # 5min
 
 
-def submit_iap_jobs(timestamp, experiment_name, coordinator, scientist, input_path, output_path, pipeline_id,
+def submit_iap_jobs(timestamp, experiment_name, input_path, output_path, pipeline_id,
                     username):
     """
     Creates and Enqueues the necessary background jobs to import, analyze and export the data of the given timestamp
 
     :param timestamp: The timestamp to be analyzed
     :param experiment_name: The name of the experiment the timestamp belongs to
-    :param coordinator: The name of the experiment coordinator
-    :param scientist: The name of the scientist conducting this experiment
     :param input_path: The path, as SMB URL, where the input data (images) are stored
     :param output_path: The path, as SMB URL, where the exported data should be stored
     :param pipeline_id: The ID of the IAP Pipeline which should be used for analysis
@@ -49,31 +43,25 @@ def submit_iap_jobs(timestamp, experiment_name, coordinator, scientist, input_pa
 
     :return: The AnalysisTask object and the analysis object itself
     """
-    shared_folder_map = current_app.config['SHARED_FOLDER_MAP']
-    smb_url, local_path = next(((smb, path) for smb, path in shared_folder_map.items() if input_path.startswith(smb)),
-                               (None, None))
-    if local_path is not None:
-        local_path = os.path.join(local_path, remove_prefix(input_path, smb_url))
 
-        try:
-            pipeline = get_iap_pipeline(username, pipeline_id)
-        except NotFoundError:
-            raise
-        except UnavailableError:
-            raise
-
-        try:
-            from server.extensions import analysis_task_scheduler
-            task, analysis = analysis_task_scheduler.submit_task(timestamp, experiment_name, coordinator, scientist,
-                                                                 input_path,
-                                                                 output_path, pipeline, username, local_path)
-            return task, analysis
-        except AlreadyFinishedError:
-            raise
-    else:
-        # TODO send another message to user. (Don't return path because it's of no interested to the user)
-        # TODO log --> severe, propably needs manual interaction
-        raise InvalidPathError(input_path, 'The given input path "{}" is not valid'.format(input_path))
+    try:
+        from server.extensions import analysis_task_scheduler
+        pipeline = get_iap_pipeline(username, pipeline_id)
+        task_name = 'Analyse timestamp data with IAP'
+        task_description = 'Full IAP Analysis for experiment "{}" at timestamp(Date:{}) with pipeline "{}".'.format(
+            experiment_name,
+            timestamp.created_at.strftime("%a %b %d %H:%M:%S UTC %Y"), pipeline.name)
+        task = AnalysisTask(redis_db, timestamp.id, pipeline.id, username, task_name, task_description, pipeline.name,
+                            input_path, output_path)
+        task.message = "Analysis Task created"
+        task, analysis = analysis_task_scheduler.submit_task(task)
+        return task, analysis
+    except NotFoundError:
+        raise
+    except UnavailableError:
+        raise
+    except AlreadyFinishedError:
+        raise
 
 
 def upload_pipeline(pipeline, username):

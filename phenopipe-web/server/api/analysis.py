@@ -7,9 +7,10 @@ from werkzeug.exceptions import UnsupportedMediaType
 
 from server.api.blueprints import api
 from server.api.exceptions import ForbiddenActionError
-from server.extensions import db, analysis_task_scheduler
+from server.extensions import db, analysis_task_scheduler, redis_db
 from server.models import ImageModel, SnapshotModel, TimestampModel
 from server.modules.processing.analysis.analysis import upload_pipeline, submit_iap_jobs
+from server.modules.processing.analysis.analysis_task import AnalysisTask
 from server.modules.processing.postprocessing.postprocessing import submit_postprocesses
 
 

@@ -1,64 +1,84 @@
 from collections import OrderedDict
-from datetime import datetime
 
-import dateutil.parser
-from rq import Queue
 from rq.job import Job, JobStatus
 
+from server.modules.processing.task import Task
 from server.modules.processing.task_state import TaskState
 from server.utils.util import as_string
 
 
-class AnalysisTask(object):
+class AnalysisTask(Task):
+    PREFIX = b'ana_tasks'
 
-    def __init__(self, connection, timestamp_id, pipeline_id, rq_queue_name='', name='', description='',
+    def __init__(self, connection, timestamp_id, pipeline_id, username='',
+                 name='', description='', pipeline_name='', input_path='',
+                 output_path='',
                  import_job=None,
-                 analysis_job=None, export_job=None, ):
-        self._connection = connection
-        self._queue = Queue(rq_queue_name, connection=connection)
+                 analysis_job=None, export_job=None, rq_queue_name='analysis'):
+        jobs = OrderedDict([('import_job', import_job),
+                            ('analysis_job', analysis_job),
+                            ('export_job', export_job)])
+        super(AnalysisTask, self).__init__(connection, jobs, username, rq_queue_name, name, description)
+
         self._timestamp_id = timestamp_id
         self._pipeline_id = pipeline_id
-        self._name = name
-        self._description = description
-        self._jobs = OrderedDict(
-            [('import_job', import_job), ('analysis_job', analysis_job), ('export_job', export_job)])
-        self._created_at = datetime.utcnow()
-        self._message = ''
-
-    @classmethod
-    def from_key(cls, connection, key):
-        parts = key.split(':', 2)
-        task = cls(connection, parts[1], parts[2])
-        task.load()
-        return task
+        self._pipeline_name = pipeline_name
+        self._input_path = input_path
+        self._output_path = output_path
 
     @classmethod
     def key_for(cls, timestamp_id, pipeline_id):
         """The Redis key that is used to store task hash under."""
-        return b'ana_tasks:' + str(timestamp_id) + ':' + str(pipeline_id)
+        return AnalysisTask.PREFIX + ':' + str(timestamp_id) + ':' + str(pipeline_id)
 
+    # TODO move to parent?
     @classmethod
-    def fetch(cls, connection, timestamp_id, pipeline_id):
+    def fetch(cls, connection, *ids):
         """Fetches a persisted task from its corresponding Redis key and
         instantiates it.
         """
-        job = cls(connection, timestamp_id, pipeline_id)
-        job.load()
-        return job
+        # todo rename to task
+        task = cls(connection, ids[0], ids[1])
+        task.load()
+        return task
 
     @property
     def key(self):
         """The Redis key that is used to store task hash under."""
         return self.key_for(self.timestamp_id, self.pipeline_id)
 
+    @property
+    def pipeline_name(self):
+        return self._pipeline_name
+
+    @pipeline_name.setter
+    def pipeline_name(self, value):
+        self._pipeline_name = value
+
+    @property
+    def input_path(self):
+        return self._input_path
+
+    @input_path.setter
+    def input_path(self, value):
+        self._input_path = value
+
+    @property
+    def output_path(self):
+        return self._output_path
+
+    @output_path.setter
+    def output_path(self, value):
+        self._output_path = value
+
     def to_dict(self):
         """
         Returns a serialization of the current Task instance
 
         """
-        obj = {'queue_name': self._queue.name,
-               'created_at': self._created_at.isoformat(), 'name': self.name,
-               'description': self.description, 'message': self.message}
+        obj = super(AnalysisTask, self).to_dict()
+        obj['input_path'] = self.input_path
+        obj['output_path'] = self.output_path
         if self.import_job is not None:
             obj['import_job'] = self.import_job.id
         if self.analysis_job is not None:
@@ -67,26 +87,10 @@ class AnalysisTask(object):
             obj['export_job'] = self.export_job.id
         return obj
 
-    def save(self):
-        self._connection.hmset(self.key, self.to_dict())
-
     def load(self):
-        key = self.key
-        obj = self._connection.hgetall(key)
-        if len(obj) == 0:
-            raise ValueError('No such task: {0}'.format(key))
-
-        def to_date(date_str):
-            if date_str is None:
-                return
-            else:
-                return dateutil.parser.parse(as_string(date_str))
-
-        self._created_at = to_date(as_string(obj.get('created_at')))
-        self.name = as_string(obj.get('name'))
-        self.description = as_string(obj.get('description'))
-        self.message = as_string(obj.get('message'))
-        self._queue = Queue(as_string(obj.get('queue_name')), connection=self._connection)
+        obj = super(AnalysisTask, self).load()
+        self.input_path = as_string(obj.get('input_path', None))
+        self.output_path = as_string(obj.get('output_path', None))
         import_job_id = as_string(obj.get('import_job', None))
         analysis_job_id = as_string(obj.get('analysis_job', None))
         export_job_id = as_string(obj.get('export_job', None))
@@ -117,18 +121,6 @@ class AnalysisTask(object):
 
         return TaskState.RUNNING
 
-    def update_message(self, message):
-        self.message = message
-        self._connection.hset(self.key, 'message', message)
-
-    def fetch_message(self):
-        self.message = self._connection.hget(self.key, 'message')
-        return self.message
-
-    @property
-    def jobs(self):
-        return self._jobs
-
     @property
     def timestamp_id(self):
         return self._timestamp_id
@@ -136,34 +128,6 @@ class AnalysisTask(object):
     @property
     def pipeline_id(self):
         return self._pipeline_id
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, value):
-        self._name = value
-
-    @property
-    def message(self):
-        return self._message
-
-    @message.setter
-    def message(self, value):
-        self._message = value
-
-    @property
-    def description(self):
-        return self._description
-
-    @description.setter
-    def description(self, value):
-        self._description = value
-
-    @property
-    def created_at(self):
-        return self._created_at
 
     @property
     def import_job(self):

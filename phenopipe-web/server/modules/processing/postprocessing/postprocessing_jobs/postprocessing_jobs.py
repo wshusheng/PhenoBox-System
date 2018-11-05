@@ -3,16 +3,14 @@ from datetime import datetime
 import grpc
 from rq import get_current_job
 from rq.decorators import job
-from sqlalchemy import and_
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.orm import contains_eager
 
 from server.extensions import redis_db
 from server.gen import phenopipe_r_pb2_grpc, phenopipe_pb2_grpc, phenopipe_r_pb2, phenopipe_pb2
-from server.models import PostprocessModel, SampleGroupModel, PlantModel, SnapshotModel
+from server.models import PostprocessModel
 from server.modules.processing.postprocessing.postprocessing_jobs.job_type import JobType
 from server.modules.processing.postprocessing.postprocessing_jobs.worker_extensions import get_grpc_channel, \
-    get_session, get_redis_connection, get_log_store
+    get_session, get_redis_connection
 from server.modules.processing.postprocessing.postprocessing_task import PostprocessingTask
 
 
@@ -55,9 +53,8 @@ def invoke_r_postprocess(experiment_name, postprocess_id, analysis_id, excluded_
     """
     print('EXECUTE POSTPROCESS')
     job = get_current_job()
-    log_store = get_log_store()
     task = PostprocessingTask.from_key(get_redis_connection(), task_key)
-    log_store.put(job.id, 'Started Postprocessing Job', 0)
+    task.log(job.id, 'Started Postprocessing Job', 0)
     task.update_message('Started Postprocessing Job')
     channel = get_grpc_channel()
     r_stub = phenopipe_r_pb2_grpc.PhenopipeRStub(channel)
@@ -81,14 +78,14 @@ def invoke_r_postprocess(experiment_name, postprocess_id, analysis_id, excluded_
                                                excluded_plant_identifiers=excluded_plant_names)
         )
         task.update_message('Started Postprocessing Stack "{}"'.format(postprocessing_stack_name))
-        log_store.put(job.id, 'Started Postprocessing Stack "{}"'.format(postprocessing_stack_name), 0)
+        task.log(job.id, 'Started Postprocessing Stack "{}"'.format(postprocessing_stack_name), 0)
         remote_job_id = response.job_id
         request = phenopipe_pb2.WatchJobRequest(
             job_id=remote_job_id
         )
         status = pipe_stub.WatchJob(request)
         for msg in status:
-            log_store.put(job.id, msg.message.decode('string-escape'), msg.progress)
+            task.log(job.id, msg.message.decode('string-escape'), msg.progress)
 
         response = r_stub.FetchPostprocessingResult(
             phenopipe_pb2.FetchJobResultRequest(job_id=remote_job_id)
@@ -96,9 +93,10 @@ def invoke_r_postprocess(experiment_name, postprocess_id, analysis_id, excluded_
         finished_at = datetime.utcnow()
         postprocess.finished_at = finished_at
         task.update_message('Finished Postprocessing Job')
-        log_store.put(job.id, 'Finished Postprocessing Job', 100)
+        task.log(job.id, 'Finished Postprocessing Job', 100)
         postprocess.result_path = response.path_to_results
         session.commit()
+
         return create_return_object(JobType.r_postprocess, analysis_id, {'path_to_results': response.path_to_results,
                                                                          'postprocess_stack_id': postprocessing_stack_id,
                                                                          'started_at': started_at,
@@ -106,7 +104,7 @@ def invoke_r_postprocess(experiment_name, postprocess_id, analysis_id, excluded_
     except grpc.RpcError as e:
         session.delete(session.query(PostprocessModel).get(postprocess.id))
         session.commit()
-        log_store.put(job.id, e.details(), 0)
+        task.log(job.id, e.details(), 0)
         task.update_message('Postprocessing Job Failed')
         print(e.details())
         raise
@@ -114,7 +112,7 @@ def invoke_r_postprocess(experiment_name, postprocess_id, analysis_id, excluded_
         # TODO handle this
         print(err.message)
         session.rollback()
-        log_store.put(job.id, e.details(), 0)
+        task.log(job.id, err.details(), 0)
         task.update_message('Postprocessing Job Failed')
         raise
         # TODO raise error or return something

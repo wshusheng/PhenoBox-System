@@ -1,96 +1,119 @@
+import json
 from collections import OrderedDict
-from datetime import datetime
 
-import dateutil.parser
-from rq import Queue
 from rq.job import Job, JobStatus
 
+from server.modules.processing.task import Task
 from server.modules.processing.task_state import TaskState
 from server.utils.util import as_string
 
 
-class PostprocessingTask(object):
+class PostprocessingTask(Task):
+    PREFIX = b'post_tasks'
 
-    def __init__(self, connection, analysis_id, postprocessing_stack_id, rq_queue_name='', name='', description='',
-                 processing_job=None):
-        self._connection = connection
-        self._queue = Queue(rq_queue_name, connection=connection)
+    # TODO Add snapshots
+    def __init__(self, connection, analysis_id, postprocessing_stack_id, username='',
+                 name='', description='', postprocessing_stack_name='',
+                 control_group_id='',
+                 snapshot_ids=list(),
+                 note='',
+                 processing_job=None,
+                 rq_queue_name='postprocessing'):
+
+        if snapshot_ids is None:
+            snapshot_ids = []
+        jobs = OrderedDict([('processing_job', processing_job)])
+        super(PostprocessingTask, self).__init__(connection, jobs, username, rq_queue_name, name, description)
+
         self._analysis_id = analysis_id
         self._postprocessing_stack_id = postprocessing_stack_id
-        self._name = name
-        self._description = description
-        self._jobs = OrderedDict([('processing_job', processing_job)])
-        self._created_at = datetime.utcnow()
-        self._message = ''
-
-    @classmethod
-    def from_key(cls, connection, key):
-        parts = key.split(':', 2)
-        task = cls(connection, parts[1], parts[2])
-        # TODO check for existence and raise error?
-        task.load()
-        return task
+        self._postprocessing_stack_name = postprocessing_stack_name
+        self._control_group_id = control_group_id
+        self._snapshot_ids = snapshot_ids
+        self._note = note
 
     @classmethod
     def key_for(cls, analysis_id, postprocessing_stack_id):
         """The Redis key that is used to store task hash under."""
-        return b'post_tasks:' + str(analysis_id) + ':' + str(postprocessing_stack_id)
+        return PostprocessingTask.PREFIX + ':' + str(analysis_id) + ':' + str(postprocessing_stack_id)
 
+    # TODO move to parent?
     @classmethod
-    def fetch(cls, connection, analysis_id, postprocessing_stack_id):
+    def fetch(cls, connection, *ids):
         """Fetches a persisted task from its corresponding Redis key and
         instantiates it.
         """
-        job = cls(connection, analysis_id, postprocessing_stack_id)
-        job.load()
-        return job
+        task = cls(connection, ids[0], ids[1])
+        task.load()
+        return task
 
     @property
     def key(self):
         """The Redis key that is used to store task hash under."""
         return self.key_for(self.analysis_id, self.postprocessing_stack_id)
 
+    @property
+    def postprocessing_stack_id(self):
+        return self._postprocessing_stack_id
+
+    @postprocessing_stack_id.setter
+    def postprocessing_stack_id(self, value):
+        self._postprocessing_stack_id = value
+
+    @property
+    def postprocessing_stack_name(self):
+        return self._postprocessing_stack_name
+
+    @postprocessing_stack_name.setter
+    def postprocessing_stack_name(self, value):
+        self._postprocessing_stack_name = value
+
+    @property
+    def control_group_id(self):
+        return self._control_group_id
+
+    @control_group_id.setter
+    def control_group_id(self, value):
+        self._control_group_id = value
+
+    @property
+    def snapshot_ids(self):
+        return self._snapshot_ids
+
+    @snapshot_ids.setter
+    def snapshot_ids(self, value):
+        self._snapshot_ids = value
+
+    @property
+    def note(self):
+        return self._note
+
+    @note.setter
+    def note(self, value):
+        self._note = value
+
     def to_dict(self):
         """
         Returns a serialization of the current Task instance
 
         """
-        obj = {'queue_name': self._queue.name, 'created_at': self._created_at.isoformat(), 'name': self.name,
-               'description': self.description, 'message': self.message}
+        obj = super(PostprocessingTask, self).to_dict()
+        obj['postprocessing_stack_id'] = self.postprocessing_stack_id
+        obj['postprocessing_stack_name'] = self.postprocessing_stack_name
+        obj['control_group_id'] = self.control_group_id
+        obj['snapshot_ids'] = json.dumps(self.snapshot_ids)
         if self.processing_job is not None:
             obj['processing_job'] = self.processing_job.id
         return obj
 
-    def save(self):
-        self._connection.hmset(self.key, self.to_dict())
-
     def load(self):
-        key = self.key
-        obj = self._connection.hgetall(key)
-        if len(obj) == 0:
-            raise ValueError('No such task: {0}'.format(key))
-
-        def to_date(date_str):
-            if date_str is None:
-                return
-            else:
-                return dateutil.parser.parse(as_string(date_str))
-
-        self._created_at = to_date(as_string(obj.get('created_at')))
-        self.name = as_string(obj.get('name'))
-        self.description = as_string(obj.get('description'))
-        self.message = as_string(obj.get('message'))
-        self._queue = Queue(as_string(obj.get('queue_name')), connection=self._connection)
+        obj = super(PostprocessingTask, self).load()
+        self.control_group_id = as_string(obj.get('control_group_id', None))
+        self.postprocessing_stack_id = as_string(obj.get('postprocessing_stack_id', None))
+        self.postprocessing_stack_name = as_string(obj.get('postprocessing_stack_name', None))
+        self.snapshot_ids = json.loads(obj.get('snapshot_ids', []))
         processing_job_id = as_string(obj.get('processing_job', None))
         self.processing_job = self._queue.fetch_job(processing_job_id)
-
-    def update_message(self, message):
-        self.message = message
-        self._connection.hset(self.key, 'message', message)
-
-    def fetch_message(self):
-        self.message = self._connection.hget(self.key, 'message')
-        return self.message
 
     @property
     def state(self):
@@ -112,38 +135,6 @@ class PostprocessingTask(object):
     @property
     def postprocessing_stack_id(self):
         return self._postprocessing_stack_id
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, value):
-        self._name = value
-
-    @property
-    def message(self):
-        return self._message
-
-    @message.setter
-    def message(self, value):
-        self._message = value
-
-    @property
-    def description(self):
-        return self._description
-
-    @description.setter
-    def description(self, value):
-        self._description = value
-
-    @property
-    def created_at(self):
-        return self._created_at
-
-    @property
-    def jobs(self):
-        return self._jobs
 
     @property
     def processing_job(self):

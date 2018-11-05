@@ -6,7 +6,6 @@ from flask import Config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from server.utils.redis_log_store import LogStore
 from server.utils.util import static_vars
 
 """
@@ -57,18 +56,6 @@ def get_redis_connection():
         get_redis_connection.connection = redis.StrictRedis(host=get_config()['REDIS_IP'],
                                                             port=get_config()['REDIS_PORT'], db=0)
     return get_redis_connection.connection
-
-
-@static_vars(log_store=None)
-def get_log_store():
-    """
-    Lazily initialized instance of :class:`~server.utils.redis_status_log.LogStore` for analysis jobs
-
-    :return: Instance of :class:`~server.utils.redis_status_log.LogStore`
-    """
-    if get_log_store.log_store is None:
-        get_log_store.log_store = LogStore(connection=get_redis_connection(), namespace='tasks:logs')
-    return get_log_store.log_store
 
 
 @static_vars(Session=None)

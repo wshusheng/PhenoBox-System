@@ -57,6 +57,7 @@ class PostprocessModel(BaseModel):
                                                              postprocessing_stack_id=postprocessing_stack_id,
                                                              snapshot_hash=snap_hash).one(), False
         except NoResultFound:
+
             entry = PostprocessModel(analysis_id, postprocessing_stack_id, control_group_id, snapshots, note, snap_hash)
             try:
                 session.add(entry)

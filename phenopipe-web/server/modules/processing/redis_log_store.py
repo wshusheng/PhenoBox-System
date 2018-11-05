@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 class LogStore(object):
-    def __init__(self, connection, namespace):
+    def __init__(self, connection, namespace='tasks:logs'):
         self._connection = connection
         self._namespace = namespace
 
@@ -20,6 +20,9 @@ class LogStore(object):
 
     def delete_log(self, id):
         self._connection.delete(self._get_list_key(id))
+
+    def expire(self, id, ttl):
+        self._connection.expire(self._get_list_key(id), ttl)
 
     def put(self, id, message, progress=0):
         item = json.dumps({'t': datetime.utcnow().isoformat(), 'm': message, 'p': progress})
