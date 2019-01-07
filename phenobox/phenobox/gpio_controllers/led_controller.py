@@ -74,7 +74,7 @@ class LedController:
         self.blinkers[pin] = blinker
 
     # TODO implement the possibility to blink multiple LEDs with one blinker Thread to prevent drifting
-    def blink_green(self, interval=2):
+    def blink_green(self, interval=1):
         """
         Blink the green LED at the given interval
 
@@ -84,7 +84,7 @@ class LedController:
         """
         self._blink(self._GREEN, interval)
 
-    def blink_blue(self, interval=2):
+    def blink_blue(self, interval=1):
         """
         Blink the blue LED at the given interval
 
@@ -94,7 +94,7 @@ class LedController:
         """
         self._blink(self._BLUE, interval)
 
-    def blink_orange(self, interval=2):
+    def blink_orange(self, interval=1):
         """
         Blink the orange LED at the given interval
 
@@ -104,7 +104,7 @@ class LedController:
         """
         self._blink(self._ORANGE, interval)
 
-    def blink_red(self, interval=2):
+    def blink_red(self, interval=1):
         """
         Blink the red LED at the given interval
 

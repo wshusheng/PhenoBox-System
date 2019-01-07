@@ -6,7 +6,7 @@ import threading
 from Queue import Queue, Empty
 
 from PIL import Image
-from colorama import Fore
+from colorama import Fore, Back
 from requests import Session, ConnectionError
 
 from config import config
@@ -136,10 +136,11 @@ class ImageHandler(threading.Thread):
         s = Session()
 
         prepped_req = self._auth.prep_post(self._graphql_address, data={
-            'query': 'mutation{addImage(' + param_string + '){ok}}'})
+            'query': 'mutation{addImage(' + param_string + '){id}}'})
         r = s.send(prepped_req)
         if r.status_code != 200:
-            raise ServerUnableToSaveImageError('Unable to create image instance on server. Http status {}')
+            raise ServerUnableToSaveImageError(
+                'Unable to create image instance on server. Http status {}'.format(r.status_code))
         resp = r.json()
         if resp.get('errors', None):
             self._logger.error(resp.get('errors')[0]['message'])
@@ -171,7 +172,7 @@ class ImageHandler(threading.Thread):
                     if exception.errno != errno.EEXIST:
                         self._logger.exception(
                             'Unable to create folder ({}). (errno: {})'.format(dest_dir, exception.errno))
-                        print(Fore.RED + 'error during mkdirs')
+                        print(Back.WHITE + Fore.RED + 'error creating directories')
                         # TODO send notification to admin
                         # TODO bailout?
                         self.add_plant(plant)
@@ -181,7 +182,7 @@ class ImageHandler(threading.Thread):
 
                 for index, picture in enumerate(pictures):
                     if self.stopped():
-                        print(Fore.YELLOW + 'Persist current plant')
+                        print(Back.WHITE + Fore.YELLOW + 'Persist current plant')
                         plant.persist(self.persist_dir)
                         break
                     path, angle = picture
@@ -194,16 +195,16 @@ class ImageHandler(threading.Thread):
                         img.save(dest, compress_level=9)
                         self._notify_server(shared_path, plant.snapshot_id, filename, angle)
                         stored_pictures.append(dest)
-                        print(Fore.YELLOW + 'Saved')
+                        print(Back.WHITE + Fore.YELLOW + 'Saved')
                         # The current plant is always at index 0 because the previous one is deleted before
                         plant.delete_picture(0)
                     except KeyError as e:
                         self._logger.exception('Key Error while saving picture. msg: {}'.format(e.message))
-                        print(Fore.RED + e.message)
+                        print(Back.WHITE + Fore.RED + e.message)
                         self.add_plant(plant)
                     except IOError as e:
                         self._logger.exception('IO Error while saving picture. msg: {}'.format(e.message))
-                        print(Fore.RED + e.message)
+                        print(Back.WHITE + Fore.RED + e.message)
                         self.add_plant(plant)
                     except UnableToAuthenticateError as e:
                         os.remove(dest)
@@ -212,27 +213,28 @@ class ImageHandler(threading.Thread):
                         self.add_plant(plant)
                     except ServerUnableToSaveImageError as e:
                         # TODO Inform user or admin
-                        print(Fore.RED + e.message)
+                        print(Back.WHITE + Fore.RED + e.message)
                         self._logger.error(e.message)
                         self.add_plant(plant)
                     except ConnectionError as e:
-                        print(Fore.RED + e.message)
+                        print(Back.WHITE + Fore.RED + e.message)
                         self._logger.error(e.message)
                         self.add_plant(plant)
                     if plant.get_picture_count() > 0:
                         print(
-                                Fore.YELLOW + str(plant.get_picture_count()) + " images remaining for plant {}".format(
+                                Back.WHITE + Fore.YELLOW + str(
+                            plant.get_picture_count()) + " images remaining for plant {}".format(
                             plant.name))
 
                 if plant.get_picture_count() == 0:
                     plant.forget(self.persist_dir)
 
-                print(Fore.YELLOW + "Plant {} done".format(plant.name))
+                print(Back.WHITE + Fore.YELLOW + "Plant {} done".format(plant.name))
                 self.queue.task_done()
-                print(Fore.YELLOW + str(self.queue.qsize()) + " plants remaining")
+                print(Back.WHITE + Fore.YELLOW + "~" + str(self.queue.qsize()) + " plants remaining")
             except Empty:
                 pass
-        print(Fore.YELLOW + "Persist remaining plants ~" + str(self.queue.qsize()))
+        print(Back.WHITE + Fore.YELLOW + "Persist remaining plants ~" + str(self.queue.qsize()))
         while not self.queue.empty():
             try:
                 plant = self.queue.get(False)
@@ -240,4 +242,4 @@ class ImageHandler(threading.Thread):
                 self.queue.task_done()
             except Empty:
                 break
-        print(Fore.YELLOW + "Image handler stopped")
+        print(Back.WHITE + Fore.YELLOW + "Image handler stopped")

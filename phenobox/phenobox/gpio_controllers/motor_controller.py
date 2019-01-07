@@ -75,11 +75,11 @@ class MotorController:
         GPIO.setup(self._SVRE, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         time.sleep(2)
         if not GPIO.input(self._ALARM):  # ALARM is negative logic
-            print "RESET ALARM"
+            #print "RESET ALARM"
             GPIO.output(self._RESET, GPIO.HIGH)
             self._wait_until(self._ALARM, GPIO.HIGH)
             GPIO.output(self._RESET, GPIO.LOW)
-            print "ALARM RESET"
+            #print "ALARM RESET"
 
         GPIO.output(self._ENABLE, GPIO.HIGH)
         GPIO.output(self._SVON, GPIO.HIGH)

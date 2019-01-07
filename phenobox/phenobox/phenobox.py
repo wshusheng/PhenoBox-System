@@ -4,7 +4,7 @@ import sys
 from Queue import Queue, Empty
 from logging.handlers import RotatingFileHandler
 
-from colorama import init, Fore
+from colorama import init, Fore, Style, Back
 
 import gpio_controllers as gpio
 from camera import CameraController
@@ -43,15 +43,16 @@ class Phenobox():
 
     def start_pressed(self, press):
         if press == ButtonPress.SHORT:
-            print(Fore.CYAN + "State: " + self.phenobox_machine.state)
+            pass
+            #print(Fore.CYAN + "State: " + self.phenobox_machine.state)
         if self.phenobox_machine.is_IDLE() or self.phenobox_machine.is_ERROR():
             if press == ButtonPress.LONG:
-                print(Fore.MAGENTA + "Shutdown Requested")
+                print(Back.WHITE + Fore.MAGENTA + "Shutdown Requested")
                 self._logger.info('Shutdown action placed')
                 self.eventQueue.put(Event.SHUTDOWN)
             else:
                 if self.door_state == DoorState.CLOSED:
-                    print(Fore.BLUE + "Start")
+                    print(Back.WHITE + Fore.BLUE + "Start")
                     if self.phenobox_machine.is_IDLE():
                         self._logger.info('Start action placed')
                         self.eventQueue.put(Event.START)
@@ -59,7 +60,7 @@ class Phenobox():
                         self._logger.info('Restart action placed')
                         self.eventQueue.put(Event.RESTART)
                 else:
-                    print(Fore.RED + "Please close the door before starting!")
+                    print(Back.WHITE + Fore.RED + "Please close the door before starting!")
 
     def initialize(self):
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -71,6 +72,7 @@ class Phenobox():
         root_logger.addHandler(file_handler)
 
         init(autoreset=True)
+        print(Back.WHITE + Fore.CYAN + 'WELCOME TO THE PHENOBOX!')
 
         photo_count = getattr(config, 'cfg').getint('box', 'photo_count')
         led_controller = LedController()
@@ -115,6 +117,7 @@ class Phenobox():
     def run(self):
         # self.phenobox_machine, self.motor_controller, self.input_controller, self.led_controller, self.camera_controller, self.image_handler = self.initialize()
         shutdown = False
+
         try:
             while True:
                 try:
@@ -131,7 +134,7 @@ class Phenobox():
 
         except KeyboardInterrupt:
             print "keyboard interrupt"
-        print(Fore.MAGENTA + 'Shutdown initiated')
+        print(Back.WHITE + Fore.MAGENTA + 'Shutdown initiated')
         self._terminate()
         if shutdown:
             subprocess.call(['sudo shutdown -h now "System halted by GPIO action" &'], shell=True)

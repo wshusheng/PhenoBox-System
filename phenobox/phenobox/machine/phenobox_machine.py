@@ -2,7 +2,7 @@ import logging
 import time
 import uuid
 
-from colorama import Fore
+from colorama import Fore, Style, Back
 from requests import Session
 from requests.exceptions import ConnectionError as ServerConnectionError
 from transitions import Machine
@@ -110,22 +110,21 @@ class PhenoboxMachine(Machine):
         return self.auth.is_authenticated() or self.auth.can_refresh()
 
     def on_enter_return(self, event):
-        print(Fore.BLUE + 'Returning to Origin')
-        # time.sleep(1)
+        print(Back.WHITE + Fore.BLUE + 'Returning to Origin')
         self.motor_controller.return_to_origin()
 
     def after_return(self, event):
         self.idle()
 
     def on_enter_idle(self, event):
-        print(Fore.GREEN + 'Idle. Waiting for user Input')
+        print(Back.WHITE + Fore.GREEN + 'Idle. Waiting for user Input')
         self.led_controller.clear_all()
         self.led_controller.switch_green(True)
         self.code_information = None
         self.plant = None
 
     def on_enter_auth(self, event):
-        print(Fore.BLUE + 'Authenticating')
+        print(Back.WHITE + Fore.BLUE + 'Authenticating')
         self.led_controller.switch_green(False)
         self.led_controller.switch_blue(True)
         try:
@@ -138,7 +137,7 @@ class PhenoboxMachine(Machine):
             self.error(error_code=11)
 
     def on_enter_setup(self, event):
-        print(Fore.BLUE + 'Setting up')
+        print(Back.WHITE + Fore.BLUE + 'Setting up')
         self.led_controller.switch_green(False)
         self.led_controller.switch_blue(True)
         self.motor_controller.return_to_origin()
@@ -148,7 +147,7 @@ class PhenoboxMachine(Machine):
         self.take_first()
 
     def on_enter_take_first_picture(self, event):
-        print(Fore.BLUE + 'Taking first picture')
+        print(Back.WHITE + Fore.BLUE + 'Taking first picture')
         try:
             picture_path = self.camera_controller.capture_and_download(name=str(uuid.uuid4()))
             if picture_path is None:
@@ -168,13 +167,13 @@ class PhenoboxMachine(Machine):
         # self.analyze()
 
     def on_enter_analyze_picture(self, event):
-        print(Fore.BLUE + 'Analyzing')
+        print(Back.WHITE + Fore.BLUE + 'Analyzing')
         path, _ = self.plant.get_first_picture()
         self.code_information = self.code_scanner.scan_image(path)
 
     def after_analyze(self, event):
         if self.code_information is not None:
-            print(Fore.CYAN + 'Decoded symbol "%s"' % str(
+            print(Back.WHITE + Fore.CYAN + 'Decoded symbol "%s"' % str(
                 self.code_information))
             self._logger.info(
                 'decoded symbol {}'.format(self.code_information))
@@ -247,7 +246,7 @@ class PhenoboxMachine(Machine):
         self.rotate()
 
     def on_enter_drive(self, event):
-        print(Fore.BLUE + 'Driving')
+        print(Back.WHITE + Fore.BLUE + 'Driving')
         # time.sleep(1)
         self.motor_controller.move_to_position(self.plant.get_picture_count())
 
@@ -256,7 +255,7 @@ class PhenoboxMachine(Machine):
         self.picture()
 
     def on_enter_take_picture(self, event):
-        print(Fore.BLUE + 'Taking picture at angle ' + str(self.motor_controller.current_angle))
+        print(Back.WHITE + Fore.BLUE + 'Taking picture at angle ' + str(self.motor_controller.current_angle))
         try:
             picture_path = self.camera_controller.capture_and_download(str(uuid.uuid4()))
             if picture_path is None:
@@ -274,7 +273,7 @@ class PhenoboxMachine(Machine):
         pass
 
     def on_enter_upload(self, event):
-        print(Fore.BLUE + 'Dispatching picture tasks')
+        print(Back.WHITE + Fore.BLUE + 'Dispatching picture tasks')
         self.image_handler.add_plant(self.plant)
 
     # TODO rename to after_upload_dispatched
@@ -282,7 +281,7 @@ class PhenoboxMachine(Machine):
         self.upload_finished()
 
     def on_enter_error(self, event):
-        print(Fore.RED + 'Something wrong happened')
+        print(Back.WHITE + Fore.RED + 'Something wrong happened')
         error_code = event.kwargs.get('error_code', -1)
         # Reset state variables
         self.pic_count = 0
@@ -293,7 +292,7 @@ class PhenoboxMachine(Machine):
 
         msg = self.error_messages.get(error_code, "Unknown error")
         self._logger.info('Machine transitioned to error state with code {}. ({})'.format(error_code, msg))
-        print(Fore.RED + msg)
+        print(Back.WHITE + Fore.RED + msg)
         self.led_controller.clear_all()
         if error_code == 1:
             self.led_controller.switch_orange(True)
